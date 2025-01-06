@@ -49,7 +49,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع لغو عملیات
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("عملیات لغو شد.")
-    return await start(update, context)  # بازگشت به صفحه دریافت فایل ویدیویی
+    
+    # بازگشت به منوی دریافت فایل
+    keyboard = [
+        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
+    
+    return CHOOSING
 
 # تابع ریست ربات
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -278,7 +286,15 @@ async def cancel_operation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     await update.callback_query.edit_message_text("عملیات لغو شد.")
-    return await start(update, context)  # بازگشت به صفحه دریافت فایل ویدیویی
+    
+    # بازگشت به منوی دریافت فایل
+    keyboard = [
+        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
+    
+    return CHOOSING
 
 # تابع رد لغو عملیات
 async def deny_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
