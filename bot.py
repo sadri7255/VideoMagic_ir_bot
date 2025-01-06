@@ -1,5 +1,12 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, ConversationHandler
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler,
+    ConversationHandler,
+)
 import os
 from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
@@ -13,7 +20,7 @@ TOKEN = '7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0'
 VIDEO, AUDIO = range(2)
 
 # تابع شروع
-def start(update, context):
+def start(update: Update, context):
     keyboard = [
         [InlineKeyboardButton("بخش ویدیویی", callback_data='video')],
         [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
@@ -22,7 +29,7 @@ def start(update, context):
     update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
 
 # تابع مدیریت انتخاب بخش
-def button(update, context):
+def button(update: Update, context):
     query = update.callback_query
     query.answer()
     if query.data == 'video':
@@ -33,7 +40,7 @@ def button(update, context):
         return AUDIO
 
 # تابع پردازش فایل ویدیویی
-def process_video(update, context):
+def process_video(update: Update, context):
     file = update.message.video.get_file()
     file.download('video.mp4')
     update.message.reply_text("فایل ویدیویی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
@@ -49,7 +56,7 @@ def process_video(update, context):
     return VIDEO
 
 # تابع پردازش فایل صوتی
-def process_audio(update, context):
+def process_audio(update: Update, context):
     file = update.message.audio.get_file()
     file.download('audio.mp3')
     update.message.reply_text("فایل صوتی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
@@ -66,7 +73,7 @@ def process_audio(update, context):
     return AUDIO
 
 # تابع بازگشت به منوی اصلی
-def back_to_main_menu(update, context):
+def back_to_main_menu(update: Update, context):
     keyboard = [
         [InlineKeyboardButton("بخش ویدیویی", callback_data='video')],
         [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
@@ -76,12 +83,12 @@ def back_to_main_menu(update, context):
     return ConversationHandler.END
 
 # تابع ریست کردن ربات
-def reset(update, context):
+def reset(update: Update, context):
     update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
     return start(update, context)
 
 # تابع کم کردن حجم فایل ویدیویی
-def compress_video(update, context):
+def compress_video(update: Update, context):
     video = VideoFileClip("video.mp4")
     video.write_videofile("compressed_video.mp4", bitrate="500k")
     update.message.reply_video(video=open("compressed_video.mp4", 'rb'))
@@ -90,7 +97,7 @@ def compress_video(update, context):
     return back_to_main_menu(update, context)
 
 # تابع برش فایل ویدیویی
-def cut_video(update, context):
+def cut_video(update: Update, context):
     start_time = "00:00:10"  # زمان شروع برش
     end_time = "00:00:20"    # زمان پایان برش
     video = VideoFileClip("video.mp4").subclip(start_time, end_time)
@@ -101,7 +108,7 @@ def cut_video(update, context):
     return back_to_main_menu(update, context)
 
 # تابع تبدیل فایل ویدیویی به صوت
-def convert_video_to_audio(update, context):
+def convert_video_to_audio(update: Update, context):
     video = VideoFileClip("video.mp4")
     video.audio.write_audiofile("converted_audio.mp3")
     update.message.reply_audio(audio=open("converted_audio.mp3", 'rb'))
@@ -110,7 +117,7 @@ def convert_video_to_audio(update, context):
     return back_to_main_menu(update, context)
 
 # تابع تغییر اطلاعات آلبوم و خواننده موسیقی
-def edit_metadata(update, context):
+def edit_metadata(update: Update, context):
     audio = EasyID3("audio.mp3")
     audio['artist'] = 'خواننده جدید'
     audio['album'] = 'آلبوم جدید'
@@ -120,7 +127,7 @@ def edit_metadata(update, context):
     return back_to_main_menu(update, context)
 
 # تابع برش موسیقی
-def cut_audio(update, context):
+def cut_audio(update: Update, context):
     start_time = 10000  # زمان شروع برش به میلی‌ثانیه
     end_time = 20000    # زمان پایان برش به میلی‌ثانیه
     audio = AudioSegment.from_mp3("audio.mp3")
@@ -132,7 +139,7 @@ def cut_audio(update, context):
     return back_to_main_menu(update, context)
 
 # تابع تغییر عکس آلبوم
-def change_album_art(update, context):
+def change_album_art(update: Update, context):
     audio = ID3("audio.mp3")
     with open("new_album_art.jpg", 'rb') as album_art:
         audio['APIC'] = APIC(
@@ -149,7 +156,7 @@ def change_album_art(update, context):
     return back_to_main_menu(update, context)
 
 # تابع کم کردن حجم صوت
-def compress_audio(update, context):
+def compress_audio(update: Update, context):
     audio = AudioSegment.from_mp3("audio.mp3")
     audio = audio.set_channels(1)  # تبدیل به mono
     audio = audio.set_frame_rate(16000)  # تنظیم bit rate
@@ -169,14 +176,14 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             VIDEO: [
-                MessageHandler(Filters.video, process_video),
+                MessageHandler(filters.VIDEO, process_video),
                 CallbackQueryHandler(compress_video, pattern='compress_video'),
                 CallbackQueryHandler(cut_video, pattern='cut_video'),
                 CallbackQueryHandler(convert_video_to_audio, pattern='convert_video_to_audio'),
                 CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
             ],
             AUDIO: [
-                MessageHandler(Filters.audio, process_audio),
+                MessageHandler(filters.AUDIO, process_audio),
                 CallbackQueryHandler(edit_metadata, pattern='edit_metadata'),
                 CallbackQueryHandler(cut_audio, pattern='cut_audio'),
                 CallbackQueryHandler(change_album_art, pattern='change_album_art'),
