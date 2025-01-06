@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # حالت‌های گفتگو
 (
     CHOOSING,
+    RECEIVE_FILE,
     COMPRESS_VIDEO,
     CONVERT_TO_AUDIO,
     TRIM_VIDEO,
@@ -26,15 +27,13 @@ logger = logging.getLogger(__name__)
     GET_START_TIME,
     GET_END_TIME,
     CONFIRM_CANCEL,
-) = range(8)
+) = range(9)
 
 # تابع شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("کاهش حجم ویدیو 🎥", callback_data="compress_video")],
-        [InlineKeyboardButton("تبدیل ویدیو به صوت 🎶", callback_data="convert_to_audio")],
-        [InlineKeyboardButton("برش کلیپ ✂️", callback_data="trim_video")],
-        [InlineKeyboardButton("برش کلیپ و صوت 🎬", callback_data="trim_video_audio")],
+        [InlineKeyboardButton("دریافت فایل 📥", callback_data="receive_file")],
+        [InlineKeyboardButton("ارسال فایل 📤", callback_data="send_file")],
         [InlineKeyboardButton("لغو عملیات ❌", callback_data="cancel_operation")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -52,19 +51,65 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
     return await start(update, context)
 
+# تابع دریافت فایل
+async def receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text("لطفا فایل خود را ارسال کنید.")
+    context.user_data["state"] = RECEIVE_FILE
+    return RECEIVE_FILE
+
+# تابع ارسال فایل
+async def send_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text("لطفا فایل خود را ارسال کنید.")
+    context.user_data["state"] = "send_file"
+    return RECEIVE_FILE
+
+# تابع مدیریت فایل دریافتی
+async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_data = context.user_data
+
+    # بررسی آیا فایل ارسال شده است
+    if update.message.document:
+        file = await update.message.document.get_file()
+    elif update.message.video:
+        file = await update.message.video.get_file()
+    else:
+        await update.message.reply_text("لطفا یک فایل ارسال کنید.")
+        return user_data["state"]
+
+    # دانلود فایل
+    file_path = f"temp_{update.message.from_user.id}.mp4"
+    await file.download_to_drive(file_path)
+
+    # ذخیره مسیر فایل در user_data
+    user_data["file_path"] = file_path
+
+    # نمایش منوی عملیات
+    keyboard = [
+        [InlineKeyboardButton("کاهش حجم ویدیو 🎥", callback_data="compress_video")],
+        [InlineKeyboardButton("تبدیل ویدیو به صوت 🎶", callback_data="convert_to_audio")],
+        [InlineKeyboardButton("برش کلیپ ✂️", callback_data="trim_video")],
+        [InlineKeyboardButton("برش کلیپ و صوت 🎬", callback_data="trim_video_audio")],
+        [InlineKeyboardButton("لغو عملیات ❌", callback_data="cancel_operation")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("فایل دریافت شد. لطفا یک عملیات را انتخاب کنید:", reply_markup=reply_markup)
+    return CHOOSING
+
 # تابع کاهش حجم ویدیو
 async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا ویدیوی خود را ارسال کنید.")
+    await update.callback_query.edit_message_text("در حال کاهش حجم ویدیو... لطفا منتظر بمانید.")
     context.user_data["state"] = COMPRESS_VIDEO
-    return COMPRESS_VIDEO
+    return await process_file(update, context)
 
 # تابع تبدیل ویدیو به صوت
 async def convert_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا ویدیوی خود را ارسال کنید.")
+    await update.callback_query.edit_message_text("در حال تبدیل ویدیو به صوت... لطفا منتظر بمانید.")
     context.user_data["state"] = CONVERT_TO_AUDIO
-    return CONVERT_TO_AUDIO
+    return await process_file(update, context)
 
 # تابع برش کلیپ
 async def trim_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -96,38 +141,25 @@ async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         end_time = float(update.message.text)
         context.user_data["end_time"] = end_time
-        await update.message.reply_text("لطفا ویدیوی خود را ارسال کنید.")
-        return context.user_data["state"]
+        return await process_file(update, context)
     except ValueError:
         await update.message.reply_text("زمان وارد شده نامعتبر است. لطفا یک عدد وارد کنید.")
         return GET_END_TIME
 
-# تابع مدیریت ویدیو
-async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# تابع پردازش فایل
+async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
+    file_path = user_data.get("file_path")
 
-    # بررسی آیا فایل ویدیویی ارسال شده است
-    if update.message.video:
-        file = await update.message.video.get_file()
-    elif update.message.document:
-        file = await update.message.document.get_file()
-    else:
-        await update.message.reply_text("لطفا یک ویدیو یا فایل ویدیویی ارسال کنید.")
-        return user_data["state"]
-
-    # دانلود فایل ویدیویی
-    file_path = f"temp_{update.message.from_user.id}.mp4"
-    await file.download_to_drive(file_path)
+    if not file_path or not os.path.exists(file_path):
+        await update.message.reply_text("فایل یافت نشد. لطفا دوباره امتحان کنید.")
+        return ConversationHandler.END
 
     try:
-        # اطلاع به کاربر درباره شروع پردازش
-        await update.message.reply_text("در حال پردازش ویدیو... لطفا منتظر بمانید.")
-
-        # پردازش ویدیو بر اساس حالت انتخاب شده
         if user_data["state"] == COMPRESS_VIDEO:
             output_path = f"compressed_{update.message.from_user.id}.mp4"
             clip = VideoFileClip(file_path)
-            clip.write_videofile(output_path, bitrate="500k", threads=4)  # استفاده از ۴ هسته CPU
+            clip.write_videofile(output_path, bitrate="500k", threads=4)
             await update.message.reply_video(video=open(output_path, "rb"))
             os.remove(output_path)
         elif user_data["state"] == CONVERT_TO_AUDIO:
@@ -142,7 +174,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             start_time = user_data.get("start_time", 0)
             end_time = user_data.get("end_time", clip.duration)
             trimmed_clip = clip.subclip(start_time, end_time)
-            trimmed_clip.write_videofile(output_path, threads=4)  # استفاده از ۴ هسته CPU
+            trimmed_clip.write_videofile(output_path, threads=4)
             await update.message.reply_video(video=open(output_path, "rb"))
             os.remove(output_path)
         elif user_data["state"] == TRIM_VIDEO_AUDIO:
@@ -154,9 +186,15 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             trimmed_clip.audio.write_audiofile(output_path)
             await update.message.reply_audio(audio=open(output_path, "rb"))
             os.remove(output_path)
+
+        # نمایش دکمه شروع مجدد
+        keyboard = [[InlineKeyboardButton("شروع مجدد 🔄", callback_data="start")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text("عملیات با موفقیت انجام شد. برای شروع مجدد کلیک کنید:", reply_markup=reply_markup)
+
     except Exception as e:
-        logger.error(f"خطا در پردازش ویدیو: {e}")
-        await update.message.reply_text("متاسفانه مشکلی در پردازش ویدیو رخ داده است. لطفا دوباره امتحان کنید.")
+        logger.error(f"خطا در پردازش فایل: {e}")
+        await update.message.reply_text("متاسفانه مشکلی در پردازش فایل رخ داده است. لطفا دوباره امتحان کنید.")
     finally:
         # حذف فایل موقت
         if os.path.exists(file_path):
@@ -196,16 +234,19 @@ def main():
         entry_points=[CommandHandler("start", start), CommandHandler("reset", reset)],
         states={
             CHOOSING: [
+                CallbackQueryHandler(receive_file, pattern="^receive_file$"),
+                CallbackQueryHandler(send_file, pattern="^send_file$"),
                 CallbackQueryHandler(compress_video, pattern="^compress_video$"),
                 CallbackQueryHandler(convert_to_audio, pattern="^convert_to_audio$"),
                 CallbackQueryHandler(trim_video, pattern="^trim_video$"),
                 CallbackQueryHandler(trim_video_audio, pattern="^trim_video_audio$"),
                 CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
             ],
-            COMPRESS_VIDEO: [MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video)],
-            CONVERT_TO_AUDIO: [MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video)],
-            TRIM_VIDEO: [MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video)],
-            TRIM_VIDEO_AUDIO: [MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video)],
+            RECEIVE_FILE: [MessageHandler(filters.Document.ALL | filters.VIDEO, handle_file)],
+            COMPRESS_VIDEO: [CallbackQueryHandler(process_file)],
+            CONVERT_TO_AUDIO: [CallbackQueryHandler(process_file)],
+            TRIM_VIDEO: [CallbackQueryHandler(process_file)],
+            TRIM_VIDEO_AUDIO: [CallbackQueryHandler(process_file)],
             GET_START_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_time)],
             GET_END_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_time)],
             CONFIRM_CANCEL: [
