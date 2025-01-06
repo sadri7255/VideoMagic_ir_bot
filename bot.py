@@ -13,6 +13,14 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 from pydub import AudioSegment
 from mutagen.easyid3 import EasyID3
 from mutagen.id3 import ID3, APIC
+import logging
+
+# تنظیمات لاگ‌گیری
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 # توکن ربات
 TOKEN = '7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0'
@@ -42,36 +50,50 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # تابع پردازش فایل ویدیویی
 async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = await update.message.video.get_file()
-    await file.download_to_drive('video.mp4')
-    await update.message.reply_text("فایل ویدیویی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
-    # اضافه کردن منو برای انتخاب عملیات ویدیویی
-    keyboard = [
-        [InlineKeyboardButton("کم کردن حجم فایل ویدیویی", callback_data='compress_video')],
-        [InlineKeyboardButton("برش فایل ویدیویی", callback_data='cut_video')],
-        [InlineKeyboardButton("تبدیل فایل ویدیویی به صوت", callback_data='convert_video_to_audio')],
-        [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data='back_to_main')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('لطفا عملیات مورد نظر را انتخاب کنید:', reply_markup=reply_markup)
-    return VIDEO
+    try:
+        file = await update.message.video.get_file()
+        await file.download_to_drive('video.mp4')
+        logger.info("فایل ویدیویی دریافت و ذخیره شد.")
+        await update.message.reply_text("فایل ویدیویی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
+        
+        # اضافه کردن منو برای انتخاب عملیات ویدیویی
+        keyboard = [
+            [InlineKeyboardButton("کم کردن حجم فایل ویدیویی", callback_data='compress_video')],
+            [InlineKeyboardButton("برش فایل ویدیویی", callback_data='cut_video')],
+            [InlineKeyboardButton("تبدیل فایل ویدیویی به صوت", callback_data='convert_video_to_audio')],
+            [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data='back_to_main')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text('لطفا عملیات مورد نظر را انتخاب کنید:', reply_markup=reply_markup)
+        return VIDEO
+    except Exception as e:
+        logger.error(f"خطا در پردازش فایل ویدیویی: {e}")
+        await update.message.reply_text("خطایی در پردازش فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
+        return ConversationHandler.END
 
 # تابع پردازش فایل صوتی
 async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = await update.message.audio.get_file()
-    await file.download_to_drive('audio.mp3')
-    await update.message.reply_text("فایل صوتی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
-    # اضافه کردن منو برای انتخاب عملیات صوتی
-    keyboard = [
-        [InlineKeyboardButton("تغییر اطلاعات آلبوم و خواننده", callback_data='edit_metadata')],
-        [InlineKeyboardButton("برش موسیقی", callback_data='cut_audio')],
-        [InlineKeyboardButton("تغییر عکس آلبوم", callback_data='change_album_art')],
-        [InlineKeyboardButton("کم کردن حجم صوت", callback_data='compress_audio')],
-        [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data='back_to_main')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('لطفا عملیات مورد نظر را انتخاب کنید:', reply_markup=reply_markup)
-    return AUDIO
+    try:
+        file = await update.message.audio.get_file()
+        await file.download_to_drive('audio.mp3')
+        logger.info("فایل صوتی دریافت و ذخیره شد.")
+        await update.message.reply_text("فایل صوتی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
+        
+        # اضافه کردن منو برای انتخاب عملیات صوتی
+        keyboard = [
+            [InlineKeyboardButton("تغییر اطلاعات آلبوم و خواننده", callback_data='edit_metadata')],
+            [InlineKeyboardButton("برش موسیقی", callback_data='cut_audio')],
+            [InlineKeyboardButton("تغییر عکس آلبوم", callback_data='change_album_art')],
+            [InlineKeyboardButton("کم کردن حجم صوت", callback_data='compress_audio')],
+            [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data='back_to_main')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text('لطفا عملیات مورد نظر را انتخاب کنید:', reply_markup=reply_markup)
+        return AUDIO
+    except Exception as e:
+        logger.error(f"خطا در پردازش فایل صوتی: {e}")
+        await update.message.reply_text("خطایی در پردازش فایل صوتی رخ داد. لطفا دوباره امتحان کنید.")
+        return ConversationHandler.END
 
 # تابع بازگشت به منوی اصلی
 async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,85 +109,6 @@ async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
     return await start(update, context)
-
-# تابع کم کردن حجم فایل ویدیویی
-async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    video = VideoFileClip("video.mp4")
-    video.write_videofile("compressed_video.mp4", bitrate="500k")
-    await update.message.reply_video(video=open("compressed_video.mp4", 'rb'))
-    os.remove("video.mp4")
-    os.remove("compressed_video.mp4")
-    return await back_to_main_menu(update, context)
-
-# تابع برش فایل ویدیویی
-async def cut_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    start_time = "00:00:10"  # زمان شروع برش
-    end_time = "00:00:20"    # زمان پایان برش
-    video = VideoFileClip("video.mp4").subclip(start_time, end_time)
-    video.write_videofile("cut_video.mp4")
-    await update.message.reply_video(video=open("cut_video.mp4", 'rb'))
-    os.remove("video.mp4")
-    os.remove("cut_video.mp4")
-    return await back_to_main_menu(update, context)
-
-# تابع تبدیل فایل ویدیویی به صوت
-async def convert_video_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    video = VideoFileClip("video.mp4")
-    video.audio.write_audiofile("converted_audio.mp3")
-    await update.message.reply_audio(audio=open("converted_audio.mp3", 'rb'))
-    os.remove("video.mp4")
-    os.remove("converted_audio.mp3")
-    return await back_to_main_menu(update, context)
-
-# تابع تغییر اطلاعات آلبوم و خواننده موسیقی
-async def edit_metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    audio = EasyID3("audio.mp3")
-    audio['artist'] = 'خواننده جدید'
-    audio['album'] = 'آلبوم جدید'
-    audio.save()
-    await update.message.reply_audio(audio=open("audio.mp3", 'rb'))
-    os.remove("audio.mp3")
-    return await back_to_main_menu(update, context)
-
-# تابع برش موسیقی
-async def cut_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    start_time = 10000  # زمان شروع برش به میلی‌ثانیه
-    end_time = 20000    # زمان پایان برش به میلی‌ثانیه
-    audio = AudioSegment.from_mp3("audio.mp3")
-    cut_audio = audio[start_time:end_time]
-    cut_audio.export("cut_audio.mp3", format="mp3")
-    await update.message.reply_audio(audio=open("cut_audio.mp3", 'rb'))
-    os.remove("audio.mp3")
-    os.remove("cut_audio.mp3")
-    return await back_to_main_menu(update, context)
-
-# تابع تغییر عکس آلبوم
-async def change_album_art(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    audio = ID3("audio.mp3")
-    with open("new_album_art.jpg", 'rb') as album_art:
-        audio['APIC'] = APIC(
-            encoding=3,
-            mime='image/jpeg',
-            type=3,
-            desc=u'Cover',
-            data=album_art.read()
-        )
-    audio.save()
-    await update.message.reply_audio(audio=open("audio.mp3", 'rb'))
-    os.remove("audio.mp3")
-    os.remove("new_album_art.jpg")
-    return await back_to_main_menu(update, context)
-
-# تابع کم کردن حجم صوت
-async def compress_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    audio = AudioSegment.from_mp3("audio.mp3")
-    audio = audio.set_channels(1)  # تبدیل به mono
-    audio = audio.set_frame_rate(16000)  # تنظیم bit rate
-    audio.export("compressed_audio.mp3", format="mp3", bitrate="16k")
-    await update.message.reply_audio(audio=open("compressed_audio.mp3", 'rb'))
-    os.remove("audio.mp3")
-    os.remove("compressed_audio.mp3")
-    return await back_to_main_menu(update, context)
 
 # تابع اصلی
 def main():
