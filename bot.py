@@ -1,367 +1,198 @@
-import os
-import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    CallbackQueryHandler,
-    ConversationHandler,
-    ContextTypes,
-)
-from moviepy.editor import VideoFileClip, AudioFileClip
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, ConversationHandler
+import os
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from pydub import AudioSegment
+from mutagen.easyid3 import EasyID3
+from mutagen.id3 import ID3, APIC
 
-# تنظیمات لاگ
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+# توکن ربات
+TOKEN = '7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0'
 
 # حالت‌های گفتگو
-(
-    CHOOSING,
-    RECEIVE_VIDEO,
-    COMPRESS_VIDEO,
-    CONVERT_TO_AUDIO,
-    TRIM_VIDEO,
-    TRIM_VIDEO_AUDIO,
-    GET_START_TIME,
-    GET_END_TIME,
-    CONFIRM_CANCEL,
-) = range(9)
-
-# تابع تبدیل زمان به ثانیه
-def time_to_seconds(time_str):
-    try:
-        hh, mm, ss = map(int, time_str.split(":"))
-        return hh * 3600 + mm * 60 + ss
-    except ValueError:
-        return None
+VIDEO, AUDIO = range(2)
 
 # تابع شروع
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start(update, context):
     keyboard = [
-        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
+        [InlineKeyboardButton("بخش ویدیویی", callback_data='video')],
+        [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
-    return CHOOSING
+    update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
 
-# تابع لغو عملیات
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("عملیات لغو شد.")
-    
-    # بازگشت به منوی دریافت فایل
+# تابع مدیریت انتخاب بخش
+def button(update, context):
+    query = update.callback_query
+    query.answer()
+    if query.data == 'video':
+        query.edit_message_text(text="شما بخش ویدیویی را انتخاب کرده‌اید. لطفا یک فایل ویدیویی ارسال کنید.")
+        return VIDEO
+    elif query.data == 'audio':
+        query.edit_message_text(text="شما بخش صوتی را انتخاب کرده‌اید. لطفا یک فایل صوتی ارسال کنید.")
+        return AUDIO
+
+# تابع پردازش فایل ویدیویی
+def process_video(update, context):
+    file = update.message.video.get_file()
+    file.download('video.mp4')
+    update.message.reply_text("فایل ویدیویی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
+    # اضافه کردن منو برای انتخاب عملیات ویدیویی
     keyboard = [
-        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
+        [InlineKeyboardButton("کم کردن حجم فایل ویدیویی", callback_data='compress_video')],
+        [InlineKeyboardButton("برش فایل ویدیویی", callback_data='cut_video')],
+        [InlineKeyboardButton("تبدیل فایل ویدیویی به صوت", callback_data='convert_video_to_audio')],
+        [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data='back_to_main')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
-    
-    return CHOOSING
+    update.message.reply_text('لطفا عملیات مورد نظر را انتخاب کنید:', reply_markup=reply_markup)
+    return VIDEO
 
-# تابع ریست ربات
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-    await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
-    return await start(update, context)
-
-# تابع دریافت فایل ویدیویی
-async def receive_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا فایل ویدیویی خود را ارسال کنید.")
-    context.user_data["state"] = RECEIVE_VIDEO
-    return RECEIVE_VIDEO
-
-# تابع مدیریت فایل دریافتی
-async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data = context.user_data
-
-    # بررسی آیا فایل ویدیویی ارسال شده است
-    if update.message.video:
-        file = await update.message.video.get_file()
-    elif update.message.document:
-        file = await update.message.document.get_file()
-    else:
-        await update.message.reply_text("لطفا یک فایل ویدیویی ارسال کنید.")
-        return user_data["state"]
-
-    # دانلود فایل
-    file_path = f"temp_{update.message.from_user.id}.mp4"
-    await file.download_to_drive(file_path)
-
-    # ذخیره مسیر فایل در user_data
-    user_data["file_path"] = file_path
-
-    # نمایش منوی اصلی
-    return await show_main_menu(update, context)
-
-# تابع نمایش منوی اصلی
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# تابع پردازش فایل صوتی
+def process_audio(update, context):
+    file = update.message.audio.get_file()
+    file.download('audio.mp3')
+    update.message.reply_text("فایل صوتی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
+    # اضافه کردن منو برای انتخاب عملیات صوتی
     keyboard = [
-        [InlineKeyboardButton("کاهش حجم ویدیو 🎥", callback_data="compress_video")],
-        [InlineKeyboardButton("تبدیل ویدیو به صوت 🎶", callback_data="convert_to_audio")],
-        [InlineKeyboardButton("برش کلیپ ✂️", callback_data="trim_video")],
-        [InlineKeyboardButton("برش کلیپ و صوت 🎬", callback_data="trim_video_audio")],
-        [InlineKeyboardButton("لغو عملیات ❌", callback_data="cancel_operation")],
-        [InlineKeyboardButton("بازگشت به منوی اصلی 🔙", callback_data="back_to_main")],
+        [InlineKeyboardButton("تغییر اطلاعات آلبوم و خواننده", callback_data='edit_metadata')],
+        [InlineKeyboardButton("برش موسیقی", callback_data='cut_audio')],
+        [InlineKeyboardButton("تغییر عکس آلبوم", callback_data='change_album_art')],
+        [InlineKeyboardButton("کم کردن حجم صوت", callback_data='compress_audio')],
+        [InlineKeyboardButton("بازگشت به منوی اصلی", callback_data='back_to_main')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("فایل دریافت شد. لطفا یک عملیات را انتخاب کنید:", reply_markup=reply_markup)
-    return CHOOSING
+    update.message.reply_text('لطفا عملیات مورد نظر را انتخاب کنید:', reply_markup=reply_markup)
+    return AUDIO
 
 # تابع بازگشت به منوی اصلی
-async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    return await show_main_menu(update, context)
-
-# تابع کاهش حجم ویدیو
-async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("در حال کاهش حجم ویدیو... لطفا منتظر بمانید.")
-    context.user_data["state"] = COMPRESS_VIDEO
-    return await process_file(update, context)
-
-# تابع تبدیل ویدیو به صوت
-async def convert_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("در حال تبدیل ویدیو به صوت... لطفا منتظر بمانید.")
-    context.user_data["state"] = CONVERT_TO_AUDIO
-    return await process_file(update, context)
-
-# تابع برش کلیپ
-async def trim_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
+def back_to_main_menu(update, context):
     keyboard = [
-        [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-        [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+        [InlineKeyboardButton("بخش ویدیویی", callback_data='video')],
+        [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.edit_message_text(
-        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-        reply_markup=reply_markup,
-    )
-    context.user_data["state"] = TRIM_VIDEO
-    return GET_START_TIME
-
-# تابع برش کلیپ و صوت
-async def trim_video_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    keyboard = [
-        [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-        [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.edit_message_text(
-        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-        reply_markup=reply_markup,
-    )
-    context.user_data["state"] = TRIM_VIDEO_AUDIO
-    return GET_START_TIME
-
-# تابع دریافت زمان شروع برش
-async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.callback_query:
-        # اگر کاربر روی دکمه کلیک کرده باشد
-        await update.callback_query.answer()
-        if update.callback_query.data == "cancel_operation":
-            return await cancel(update, context)
-        elif update.callback_query.data == "back_to_main":
-            return await back_to_main(update, context)
-    else:
-        # اگر کاربر متن ارسال کرده باشد
-        time_str = update.message.text
-        start_time = time_to_seconds(time_str)
-
-        if start_time is None:
-            keyboard = [
-                [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-                [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(
-                "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-                reply_markup=reply_markup,
-            )
-            return GET_START_TIME
-
-        context.user_data["start_time"] = start_time
-        keyboard = [
-            [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-            [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "لطفا زمان پایان برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-            reply_markup=reply_markup,
-        )
-        return GET_END_TIME
-
-# تابع دریافت زمان پایان برش
-async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.callback_query:
-        # اگر کاربر روی دکمه کلیک کرده باشد
-        await update.callback_query.answer()
-        if update.callback_query.data == "cancel_operation":
-            return await cancel(update, context)
-        elif update.callback_query.data == "back_to_main":
-            return await back_to_main(update, context)
-    else:
-        # اگر کاربر متن ارسال کرده باشد
-        time_str = update.message.text
-        end_time = time_to_seconds(time_str)
-
-        if end_time is None:
-            keyboard = [
-                [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-                [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(
-                "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-                reply_markup=reply_markup,
-            )
-            return GET_END_TIME
-
-        context.user_data["end_time"] = end_time
-        return await process_file(update, context)
-
-# تابع پردازش فایل
-async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_data = context.user_data
-    file_path = user_data.get("file_path")
-
-    if not file_path or not os.path.exists(file_path):
-        await update.message.reply_text("فایل یافت نشد. لطفا دوباره امتحان کنید.")
-        return ConversationHandler.END
-
-    try:
-        if user_data["state"] == COMPRESS_VIDEO:
-            output_path = f"compressed_{update.message.from_user.id}.mp4"
-            clip = VideoFileClip(file_path)
-            clip.write_videofile(output_path, bitrate="500k", threads=4)
-            await update.message.reply_video(video=open(output_path, "rb"))
-            os.remove(output_path)
-        elif user_data["state"] == CONVERT_TO_AUDIO:
-            output_path = f"converted_{update.message.from_user.id}.mp3"
-            clip = VideoFileClip(file_path)
-            clip.audio.write_audiofile(output_path)
-            await update.message.reply_audio(audio=open(output_path, "rb"))
-            os.remove(output_path)
-        elif user_data["state"] == TRIM_VIDEO:
-            output_path = f"trimmed_{update.message.from_user.id}.mp4"
-            clip = VideoFileClip(file_path)
-            start_time = user_data.get("start_time", 0)
-            end_time = user_data.get("end_time", clip.duration)
-            trimmed_clip = clip.subclip(start_time, end_time)
-            trimmed_clip.write_videofile(output_path, threads=4)
-            await update.message.reply_video(video=open(output_path, "rb"))
-            os.remove(output_path)
-        elif user_data["state"] == TRIM_VIDEO_AUDIO:
-            output_path = f"trimmed_audio_{update.message.from_user.id}.mp3"
-            clip = VideoFileClip(file_path)
-            start_time = user_data.get("start_time", 0)
-            end_time = user_data.get("end_time", clip.duration)
-            trimmed_clip = clip.subclip(start_time, end_time)
-            trimmed_clip.audio.write_audiofile(output_path)
-            await update.message.reply_audio(audio=open(output_path, "rb"))
-            os.remove(output_path)
-
-        # نمایش دکمه شروع مجدد
-        keyboard = [[InlineKeyboardButton("شروع مجدد 🔄", callback_data="start")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("عملیات با موفقیت انجام شد. برای شروع مجدد کلیک کنید:", reply_markup=reply_markup)
-
-    except Exception as e:
-        logger.error(f"خطا در پردازش فایل: {e}")
-        keyboard = [
-            [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-            [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "متاسفانه مشکلی در پردازش فایل رخ داده است. لطفا دوباره امتحان کنید.",
-            reply_markup=reply_markup,
-        )
-    finally:
-        # حذف فایل موقت
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
+    update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
     return ConversationHandler.END
 
-# تابع لغو عملیات با تأیید کاربر
-async def cancel_operation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("بله ✅", callback_data="confirm_cancel")],
-        [InlineKeyboardButton("خیر ❌", callback_data="deny_cancel")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("آیا مطمئن هستید که می‌خواهید عملیات را لغو کنید؟", reply_markup=reply_markup)
-    return CONFIRM_CANCEL
+# تابع ریست کردن ربات
+def reset(update, context):
+    update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
+    return start(update, context)
 
-# تابع تأیید لغو عملیات
-async def confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("عملیات لغو شد.")
-    
-    # بازگشت به منوی دریافت فایل
-    keyboard = [
-        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.callback_query.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
-    
-    return CHOOSING
+# تابع کم کردن حجم فایل ویدیویی
+def compress_video(update, context):
+    video = VideoFileClip("video.mp4")
+    video.write_videofile("compressed_video.mp4", bitrate="500k")
+    update.message.reply_video(video=open("compressed_video.mp4", 'rb'))
+    os.remove("video.mp4")
+    os.remove("compressed_video.mp4")
+    return back_to_main_menu(update, context)
 
-# تابع رد لغو عملیات
-async def deny_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("عملیات ادامه می‌یابد.")
-    return context.user_data.get("state", CHOOSING)
+# تابع برش فایل ویدیویی
+def cut_video(update, context):
+    start_time = "00:00:10"  # زمان شروع برش
+    end_time = "00:00:20"    # زمان پایان برش
+    video = VideoFileClip("video.mp4").subclip(start_time, end_time)
+    video.write_videofile("cut_video.mp4")
+    update.message.reply_video(video=open("cut_video.mp4", 'rb'))
+    os.remove("video.mp4")
+    os.remove("cut_video.mp4")
+    return back_to_main_menu(update, context)
+
+# تابع تبدیل فایل ویدیویی به صوت
+def convert_video_to_audio(update, context):
+    video = VideoFileClip("video.mp4")
+    video.audio.write_audiofile("converted_audio.mp3")
+    update.message.reply_audio(audio=open("converted_audio.mp3", 'rb'))
+    os.remove("video.mp4")
+    os.remove("converted_audio.mp3")
+    return back_to_main_menu(update, context)
+
+# تابع تغییر اطلاعات آلبوم و خواننده موسیقی
+def edit_metadata(update, context):
+    audio = EasyID3("audio.mp3")
+    audio['artist'] = 'خواننده جدید'
+    audio['album'] = 'آلبوم جدید'
+    audio.save()
+    update.message.reply_audio(audio=open("audio.mp3", 'rb'))
+    os.remove("audio.mp3")
+    return back_to_main_menu(update, context)
+
+# تابع برش موسیقی
+def cut_audio(update, context):
+    start_time = 10000  # زمان شروع برش به میلی‌ثانیه
+    end_time = 20000    # زمان پایان برش به میلی‌ثانیه
+    audio = AudioSegment.from_mp3("audio.mp3")
+    cut_audio = audio[start_time:end_time]
+    cut_audio.export("cut_audio.mp3", format="mp3")
+    update.message.reply_audio(audio=open("cut_audio.mp3", 'rb'))
+    os.remove("audio.mp3")
+    os.remove("cut_audio.mp3")
+    return back_to_main_menu(update, context)
+
+# تابع تغییر عکس آلبوم
+def change_album_art(update, context):
+    audio = ID3("audio.mp3")
+    with open("new_album_art.jpg", 'rb') as album_art:
+        audio['APIC'] = APIC(
+            encoding=3,
+            mime='image/jpeg',
+            type=3,
+            desc=u'Cover',
+            data=album_art.read()
+        )
+    audio.save()
+    update.message.reply_audio(audio=open("audio.mp3", 'rb'))
+    os.remove("audio.mp3")
+    os.remove("new_album_art.jpg")
+    return back_to_main_menu(update, context)
+
+# تابع کم کردن حجم صوت
+def compress_audio(update, context):
+    audio = AudioSegment.from_mp3("audio.mp3")
+    audio = audio.set_channels(1)  # تبدیل به mono
+    audio = audio.set_frame_rate(16000)  # تنظیم bit rate
+    audio.export("compressed_audio.mp3", format="mp3", bitrate="16k")
+    update.message.reply_audio(audio=open("compressed_audio.mp3", 'rb'))
+    os.remove("audio.mp3")
+    os.remove("compressed_audio.mp3")
+    return back_to_main_menu(update, context)
 
 # تابع اصلی
 def main():
-    # استفاده از توکن ربات شما
-    application = Application.builder().token("7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0").build()
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
 
+    # تعریف ConversationHandler برای مدیریت حالت‌های مختلف
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start), CommandHandler("reset", reset)],
+        entry_points=[CommandHandler('start', start)],
         states={
-            CHOOSING: [
-                CallbackQueryHandler(receive_video, pattern="^receive_video$"),
-                CallbackQueryHandler(compress_video, pattern="^compress_video$"),
-                CallbackQueryHandler(convert_to_audio, pattern="^convert_to_audio$"),
-                CallbackQueryHandler(trim_video, pattern="^trim_video$"),
-                CallbackQueryHandler(trim_video_audio, pattern="^trim_video_audio$"),
-                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
-                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
+            VIDEO: [
+                MessageHandler(Filters.video, process_video),
+                CallbackQueryHandler(compress_video, pattern='compress_video'),
+                CallbackQueryHandler(cut_video, pattern='cut_video'),
+                CallbackQueryHandler(convert_video_to_audio, pattern='convert_video_to_audio'),
+                CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
             ],
-            RECEIVE_VIDEO: [MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video)],
-            COMPRESS_VIDEO: [CallbackQueryHandler(process_file)],
-            CONVERT_TO_AUDIO: [CallbackQueryHandler(process_file)],
-            TRIM_VIDEO: [CallbackQueryHandler(process_file)],
-            TRIM_VIDEO_AUDIO: [CallbackQueryHandler(process_file)],
-            GET_START_TIME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_time),
-                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
-                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
-            ],
-            GET_END_TIME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_time),
-                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
-                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
-            ],
-            CONFIRM_CANCEL: [
-                CallbackQueryHandler(confirm_cancel, pattern="^confirm_cancel$"),
-                CallbackQueryHandler(deny_cancel, pattern="^deny_cancel$"),
-            ],
+            AUDIO: [
+                MessageHandler(Filters.audio, process_audio),
+                CallbackQueryHandler(edit_metadata, pattern='edit_metadata'),
+                CallbackQueryHandler(cut_audio, pattern='cut_audio'),
+                CallbackQueryHandler(change_album_art, pattern='change_album_art'),
+                CallbackQueryHandler(compress_audio, pattern='compress_audio'),
+                CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
+            ]
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler('reset', reset)]
     )
 
-    application.add_handler(conv_handler)
-    application.run_polling()
+    dp.add_handler(conv_handler)
+    dp.add_handler(CallbackQueryHandler(button))
+    dp.add_handler(CommandHandler('reset', reset))
 
-if __name__ == "__main__":
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
     main()
