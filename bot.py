@@ -106,7 +106,7 @@ async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
 
-    # بررسی آیا ویدیو به صورت فایل مستقیم ارسال شده است
+    # بررسی آیا فایل ویدیویی ارسال شده است
     if update.message.video:
         file = await update.message.video.get_file()
     elif update.message.document:
@@ -115,7 +115,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("لطفا یک ویدیو یا فایل ویدیویی ارسال کنید.")
         return user_data["state"]
 
-    # دانلود ویدیو
+    # دانلود فایل ویدیویی
     file_path = f"temp_{update.message.from_user.id}.mp4"
     await file.download_to_drive(file_path)
 
