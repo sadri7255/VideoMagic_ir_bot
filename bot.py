@@ -294,7 +294,7 @@ async def deny_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # تابع اصلی
 def main():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    token = os.getenv("7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0")
     if not token:
         raise ValueError("لطفا توکن ربات را تنظیم کنید.")
     application = Application.builder().token(token).build()
