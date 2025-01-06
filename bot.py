@@ -120,11 +120,14 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await file.download_to_drive(file_path)
 
     try:
+        # اطلاع به کاربر درباره شروع پردازش
+        await update.message.reply_text("در حال پردازش ویدیو... لطفا منتظر بمانید.")
+
         # پردازش ویدیو بر اساس حالت انتخاب شده
         if user_data["state"] == COMPRESS_VIDEO:
             output_path = f"compressed_{update.message.from_user.id}.mp4"
             clip = VideoFileClip(file_path)
-            clip.write_videofile(output_path, bitrate="500k")
+            clip.write_videofile(output_path, bitrate="500k", threads=4)  # استفاده از ۴ هسته CPU
             await update.message.reply_video(video=open(output_path, "rb"))
             os.remove(output_path)
         elif user_data["state"] == CONVERT_TO_AUDIO:
@@ -139,7 +142,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
             start_time = user_data.get("start_time", 0)
             end_time = user_data.get("end_time", clip.duration)
             trimmed_clip = clip.subclip(start_time, end_time)
-            trimmed_clip.write_videofile(output_path)
+            trimmed_clip.write_videofile(output_path, threads=4)  # استفاده از ۴ هسته CPU
             await update.message.reply_video(video=open(output_path, "rb"))
             os.remove(output_path)
         elif user_data["state"] == TRIM_VIDEO_AUDIO:
