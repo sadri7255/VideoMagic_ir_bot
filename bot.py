@@ -62,8 +62,8 @@ async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message.video:
             logger.info("فایل ویدیویی دریافت شد.")
             file = await update.message.video.get_file()
-        elif update.message.document:
-            logger.info("فایل به عنوان document دریافت شد.")
+        elif update.message.document and update.message.document.mime_type.startswith('video/'):
+            logger.info("فایل ویدیویی به عنوان document دریافت شد.")
             file = await update.message.document.get_file()
         else:
             await update.message.reply_text("لطفا یک فایل ویدیویی ارسال کنید.")
@@ -104,10 +104,9 @@ async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         video = VideoFileClip("video.mp4")
         video.write_videofile("compressed_video.mp4", bitrate="500k")
-        await message.reply_video(video=open("compressed_video.mp4", 'rb'))
-        os.remove("video.mp4")
-        os.remove("compressed_video.mp4")
-        return await back_to_main_menu(update, context)
+        os.replace("compressed_video.mp4", "video.mp4")  # جایگزینی فایل موقت
+        await message.reply_text("حجم فایل ویدیویی کاهش یافت.")
+        return VIDEO
     except Exception as e:
         logger.error(f"خطا در کم کردن حجم فایل ویدیویی: {e}")
         if update.message:
@@ -132,10 +131,9 @@ async def cut_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_time = "00:00:20"    # زمان پایان برش
         video = VideoFileClip("video.mp4").subclip(start_time, end_time)
         video.write_videofile("cut_video.mp4")
-        await message.reply_video(video=open("cut_video.mp4", 'rb'))
-        os.remove("video.mp4")
-        os.remove("cut_video.mp4")
-        return await back_to_main_menu(update, context)
+        os.replace("cut_video.mp4", "video.mp4")  # جایگزینی فایل موقت
+        await message.reply_text("فایل ویدیویی برش داده شد.")
+        return VIDEO
     except Exception as e:
         logger.error(f"خطا در برش فایل ویدیویی: {e}")
         if update.message:
@@ -158,10 +156,9 @@ async def convert_video_to_audio(update: Update, context: ContextTypes.DEFAULT_T
 
         video = VideoFileClip("video.mp4")
         video.audio.write_audiofile("converted_audio.mp3")
-        await message.reply_audio(audio=open("converted_audio.mp3", 'rb'))
-        os.remove("video.mp4")
-        os.remove("converted_audio.mp3")
-        return await back_to_main_menu(update, context)
+        os.replace("converted_audio.mp3", "audio.mp3")  # جایگزینی فایل موقت
+        await message.reply_text("فایل ویدیویی به صوت تبدیل شد.")
+        return AUDIO
     except Exception as e:
         logger.error(f"خطا در تبدیل فایل ویدیویی به صوت: {e}")
         if update.message:
@@ -177,8 +174,8 @@ async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.message.audio:
             logger.info("فایل صوتی دریافت شد.")
             file = await update.message.audio.get_file()
-        elif update.message.document:
-            logger.info("فایل به عنوان document دریافت شد.")
+        elif update.message.document and update.message.document.mime_type.startswith('audio/'):
+            logger.info("فایل صوتی به عنوان document دریافت شد.")
             file = await update.message.document.get_file()
         else:
             await update.message.reply_text("لطفا یک فایل صوتی ارسال کنید.")
@@ -222,9 +219,8 @@ async def edit_metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
         audio['artist'] = 'خواننده جدید'
         audio['album'] = 'آلبوم جدید'
         audio.save()
-        await message.reply_audio(audio=open("audio.mp3", 'rb'))
-        os.remove("audio.mp3")
-        return await back_to_main_menu(update, context)
+        await message.reply_text("اطلاعات آلبوم و خواننده تغییر یافت.")
+        return AUDIO
     except Exception as e:
         logger.error(f"خطا در تغییر اطلاعات آلبوم و خواننده: {e}")
         if update.message:
@@ -250,10 +246,9 @@ async def cut_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         audio = AudioSegment.from_mp3("audio.mp3")
         cut_audio = audio[start_time:end_time]
         cut_audio.export("cut_audio.mp3", format="mp3")
-        await message.reply_audio(audio=open("cut_audio.mp3", 'rb'))
-        os.remove("audio.mp3")
-        os.remove("cut_audio.mp3")
-        return await back_to_main_menu(update, context)
+        os.replace("cut_audio.mp3", "audio.mp3")  # جایگزینی فایل موقت
+        await message.reply_text("فایل صوتی برش داده شد.")
+        return AUDIO
     except Exception as e:
         logger.error(f"خطا در برش موسیقی: {e}")
         if update.message:
@@ -284,10 +279,8 @@ async def change_album_art(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 data=album_art.read()
             )
         audio.save()
-        await message.reply_audio(audio=open("audio.mp3", 'rb'))
-        os.remove("audio.mp3")
-        os.remove("new_album_art.jpg")
-        return await back_to_main_menu(update, context)
+        await message.reply_text("عکس آلبوم تغییر یافت.")
+        return AUDIO
     except Exception as e:
         logger.error(f"خطا در تغییر عکس آلبوم: {e}")
         if update.message:
@@ -312,10 +305,9 @@ async def compress_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         audio = audio.set_channels(1)  # تبدیل به mono
         audio = audio.set_frame_rate(16000)  # تنظیم bit rate
         audio.export("compressed_audio.mp3", format="mp3", bitrate="16k")
-        await message.reply_audio(audio=open("compressed_audio.mp3", 'rb'))
-        os.remove("audio.mp3")
-        os.remove("compressed_audio.mp3")
-        return await back_to_main_menu(update, context)
+        os.replace("compressed_audio.mp3", "audio.mp3")  # جایگزینی فایل موقت
+        await message.reply_text("حجم فایل صوتی کاهش یافت.")
+        return AUDIO
     except Exception as e:
         logger.error(f"خطا در کم کردن حجم صوت: {e}")
         if update.message:
