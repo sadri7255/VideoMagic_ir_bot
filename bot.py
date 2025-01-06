@@ -49,7 +49,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع لغو عملیات
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("عملیات لغو شد.")
-    return await start(update, context)
+    
+    # بازگشت به منوی دریافت فایل
+    keyboard = [
+        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
+    
+    return CHOOSING
 
 # تابع ریست ربات
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -68,17 +76,23 @@ async def receive_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
 
+    # بررسی آیا فایل ویدیویی ارسال شده است
     if update.message.video:
         file = await update.message.video.get_file()
-    elif update.message.document and update.message.document.mime_type.startswith('video'):
+    elif update.message.document:
         file = await update.message.document.get_file()
     else:
         await update.message.reply_text("لطفا یک فایل ویدیویی ارسال کنید.")
-        return await show_main_menu(update, context)
+        return user_data["state"]
 
+    # دانلود فایل
     file_path = f"temp_{update.message.from_user.id}.mp4"
     await file.download_to_drive(file_path)
+
+    # ذخیره مسیر فایل در user_data
     user_data["file_path"] = file_path
+
+    # نمایش منوی اصلی
     return await show_main_menu(update, context)
 
 # تابع نمایش منوی اصلی
@@ -147,12 +161,14 @@ async def trim_video_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع دریافت زمان شروع برش
 async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
+        # اگر کاربر روی دکمه کلیک کرده باشد
         await update.callback_query.answer()
         if update.callback_query.data == "cancel_operation":
             return await cancel(update, context)
         elif update.callback_query.data == "back_to_main":
             return await back_to_main(update, context)
     else:
+        # اگر کاربر متن ارسال کرده باشد
         time_str = update.message.text
         start_time = time_to_seconds(time_str)
 
@@ -183,12 +199,14 @@ async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع دریافت زمان پایان برش
 async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
+        # اگر کاربر روی دکمه کلیک کرده باشد
         await update.callback_query.answer()
         if update.callback_query.data == "cancel_operation":
             return await cancel(update, context)
         elif update.callback_query.data == "back_to_main":
             return await back_to_main(update, context)
     else:
+        # اگر کاربر متن ارسال کرده باشد
         time_str = update.message.text
         end_time = time_to_seconds(time_str)
 
@@ -214,7 +232,7 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not file_path or not os.path.exists(file_path):
         await update.message.reply_text("فایل یافت نشد. لطفا دوباره امتحان کنید.")
-        return await show_main_menu(update, context)
+        return ConversationHandler.END
 
     try:
         if user_data["state"] == COMPRESS_VIDEO:
@@ -248,6 +266,7 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_audio(audio=open(output_path, "rb"))
             os.remove(output_path)
 
+        # نمایش دکمه شروع مجدد
         keyboard = [[InlineKeyboardButton("شروع مجدد 🔄", callback_data="start")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("عملیات با موفقیت انجام شد. برای شروع مجدد کلیک کنید:", reply_markup=reply_markup)
@@ -264,6 +283,7 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup,
         )
     finally:
+        # حذف فایل موقت
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -284,7 +304,15 @@ async def cancel_operation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     await update.callback_query.edit_message_text("عملیات لغو شد.")
-    return await start(update, context)
+    
+    # بازگشت به منوی دریافت فایل
+    keyboard = [
+        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
+    
+    return CHOOSING
 
 # تابع رد لغو عملیات
 async def deny_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -294,10 +322,8 @@ async def deny_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # تابع اصلی
 def main():
-    token = os.getenv("7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0")
-    if not token:
-        raise ValueError("لطفا توکن ربات را تنظیم کنید.")
-    application = Application.builder().token(token).build()
+    # استفاده از توکن ربات شما
+    application = Application.builder().token("7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0").build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start), CommandHandler("reset", reset)],
