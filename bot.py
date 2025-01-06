@@ -36,6 +36,34 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("عملیات لغو شد.")
     return ConversationHandler.END
 
+# تابع کاهش حجم ویدیو
+async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text("لطفا ویدیوی خود را ارسال کنید.")
+    context.user_data["state"] = COMPRESS_VIDEO
+    return COMPRESS_VIDEO
+
+# تابع تبدیل ویدیو به صوت
+async def convert_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text("لطفا ویدیوی خود را ارسال کنید.")
+    context.user_data["state"] = CONVERT_TO_AUDIO
+    return CONVERT_TO_AUDIO
+
+# تابع برش کلیپ
+async def trim_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text("لطفا ویدیوی خود را ارسال کنید.")
+    context.user_data["state"] = TRIM_VIDEO
+    return TRIM_VIDEO
+
+# تابع برش کلیپ و صوت
+async def trim_video_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.edit_message_text("لطفا ویدیوی خود را ارسال کنید.")
+    context.user_data["state"] = TRIM_VIDEO_AUDIO
+    return TRIM_VIDEO_AUDIO
+
 # تابع مدیریت ویدیو
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
