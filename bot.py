@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # توکن ربات
-TOKEN = '7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0'
+TOKEN = 'YOUR_BOT_TOKEN_HERE'  # توکن ربات خود را اینجا قرار دهید
 
 # حالت‌های گفتگو
 VIDEO, AUDIO = range(2)
@@ -36,6 +36,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
+    return VIDEO if context.user_data.get('selected_section') == 'video' else AUDIO
 
 # تابع مدیریت انتخاب بخش
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,10 +44,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     if query.data == 'video':
         await query.edit_message_text(text="شما بخش ویدیویی را انتخاب کرده‌اید. لطفا یک فایل ویدیویی ارسال کنید.")
+        context.user_data['selected_section'] = 'video'
         return VIDEO
     elif query.data == 'audio':
         await query.edit_message_text(text="شما بخش صوتی را انتخاب کرده‌اید. لطفا یک فایل صوتی ارسال کنید.")
+        context.user_data['selected_section'] = 'audio'
         return AUDIO
+    elif query.data == 'back_to_main':
+        return await start(update, context)
 
 # تابع پردازش فایل ویدیویی
 async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -116,21 +121,6 @@ async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"خطا در پردازش فایل صوتی: {e}")
         await update.message.reply_text("خطایی در پردازش فایل صوتی رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
-
-# تابع بازگشت به منوی اصلی
-async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("بخش ویدیویی", callback_data='video')],
-        [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
-    return ConversationHandler.END
-
-# تابع ریست کردن ربات
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
-    return await start(update, context)
 
 # تابع کم کردن حجم فایل ویدیویی
 async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -246,6 +236,21 @@ async def compress_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("خطایی در کم کردن حجم صوت رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
+# تابع بازگشت به منوی اصلی
+async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("بخش ویدیویی", callback_data='video')],
+        [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
+    return ConversationHandler.END
+
+# تابع ریست کردن ربات
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
+    return await start(update, context)
+
 # تابع اصلی
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
@@ -274,7 +279,7 @@ def main():
     )
 
     application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CallbackQueryHandler(button))  # این خط اضافه شده است
     application.add_handler(CommandHandler('reset', reset))
 
     application.run_polling()
