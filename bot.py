@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # حالت‌های گفتگو
 (
     CHOOSING,
-    RECEIVE_FILE,
+    RECEIVE_VIDEO,
     COMPRESS_VIDEO,
     CONVERT_TO_AUDIO,
     TRIM_VIDEO,
@@ -40,16 +40,16 @@ def time_to_seconds(time_str):
 # تابع شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("دریافت فایل 📥", callback_data="receive_file")],
+        [InlineKeyboardButton("دریافت فایل ویدیویی 🎥", callback_data="receive_video")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("لطفا فایل خود را ارسال کنید:", reply_markup=reply_markup)
+    await update.message.reply_text("لطفا فایل ویدیویی خود را ارسال کنید:", reply_markup=reply_markup)
     return CHOOSING
 
 # تابع لغو عملیات
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("عملیات لغو شد.")
-    return ConversationHandler.END
+    return await start(update, context)  # بازگشت به صفحه دریافت فایل ویدیویی
 
 # تابع ریست ربات
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,24 +57,24 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
     return await start(update, context)
 
-# تابع دریافت فایل
-async def receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# تابع دریافت فایل ویدیویی
+async def receive_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا فایل خود را ارسال کنید.")
-    context.user_data["state"] = RECEIVE_FILE
-    return RECEIVE_FILE
+    await update.callback_query.edit_message_text("لطفا فایل ویدیویی خود را ارسال کنید.")
+    context.user_data["state"] = RECEIVE_VIDEO
+    return RECEIVE_VIDEO
 
 # تابع مدیریت فایل دریافتی
-async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
 
-    # بررسی آیا فایل ارسال شده است
-    if update.message.document:
-        file = await update.message.document.get_file()
-    elif update.message.video:
+    # بررسی آیا فایل ویدیویی ارسال شده است
+    if update.message.video:
         file = await update.message.video.get_file()
+    elif update.message.document:
+        file = await update.message.document.get_file()
     else:
-        await update.message.reply_text("لطفا یک فایل ارسال کنید.")
+        await update.message.reply_text("لطفا یک فایل ویدیویی ارسال کنید.")
         return user_data["state"]
 
     # دانلود فایل
@@ -123,8 +123,14 @@ async def convert_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع برش کلیپ
 async def trim_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
+    keyboard = [
+        [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+        [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05"
+        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+        reply_markup=reply_markup,
     )
     context.user_data["state"] = TRIM_VIDEO
     return GET_START_TIME
@@ -132,8 +138,14 @@ async def trim_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع برش کلیپ و صوت
 async def trim_video_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
+    keyboard = [
+        [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+        [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05"
+        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+        reply_markup=reply_markup,
     )
     context.user_data["state"] = TRIM_VIDEO_AUDIO
     return GET_START_TIME
@@ -144,11 +156,27 @@ async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     start_time = time_to_seconds(time_str)
 
     if start_time is None:
-        await update.message.reply_text("فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05")
+        keyboard = [
+            [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+            [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+            reply_markup=reply_markup,
+        )
         return GET_START_TIME
 
     context.user_data["start_time"] = start_time
-    await update.message.reply_text("لطفا زمان پایان برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05")
+    keyboard = [
+        [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+        [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(
+        "لطفا زمان پایان برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+        reply_markup=reply_markup,
+    )
     return GET_END_TIME
 
 # تابع دریافت زمان پایان برش
@@ -157,7 +185,15 @@ async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     end_time = time_to_seconds(time_str)
 
     if end_time is None:
-        await update.message.reply_text("فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05")
+        keyboard = [
+            [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+            [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+            reply_markup=reply_markup,
+        )
         return GET_END_TIME
 
     context.user_data["end_time"] = end_time
@@ -211,7 +247,15 @@ async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"خطا در پردازش فایل: {e}")
-        await update.message.reply_text("متاسفانه مشکلی در پردازش فایل رخ داده است. لطفا دوباره امتحان کنید.")
+        keyboard = [
+            [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+            [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "متاسفانه مشکلی در پردازش فایل رخ داده است. لطفا دوباره امتحان کنید.",
+            reply_markup=reply_markup,
+        )
     finally:
         # حذف فایل موقت
         if os.path.exists(file_path):
@@ -234,7 +278,7 @@ async def cancel_operation(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     await update.callback_query.edit_message_text("عملیات لغو شد.")
-    return ConversationHandler.END
+    return await start(update, context)  # بازگشت به صفحه دریافت فایل ویدیویی
 
 # تابع رد لغو عملیات
 async def deny_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -251,24 +295,24 @@ def main():
         entry_points=[CommandHandler("start", start), CommandHandler("reset", reset)],
         states={
             CHOOSING: [
-                CallbackQueryHandler(receive_file, pattern="^receive_file$"),
-                CallbackQueryHandler(compress_video, pattern="^compress_video$"),
-                CallbackQueryHandler(convert_to_audio, pattern="^convert_to_audio$"),
-                CallbackQueryHandler(trim_video, pattern="^trim_video$"),
-                CallbackQueryHandler(trim_video_audio, pattern="^trim_video_audio$"),
-                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
-                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
+                CallbackQueryHandler(receive_video, pattern="^receive_video$", per_message=True),
+                CallbackQueryHandler(compress_video, pattern="^compress_video$", per_message=True),
+                CallbackQueryHandler(convert_to_audio, pattern="^convert_to_audio$", per_message=True),
+                CallbackQueryHandler(trim_video, pattern="^trim_video$", per_message=True),
+                CallbackQueryHandler(trim_video_audio, pattern="^trim_video_audio$", per_message=True),
+                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$", per_message=True),
+                CallbackQueryHandler(back_to_main, pattern="^back_to_main$", per_message=True),
             ],
-            RECEIVE_FILE: [MessageHandler(filters.Document.ALL | filters.VIDEO, handle_file)],
-            COMPRESS_VIDEO: [CallbackQueryHandler(process_file)],
-            CONVERT_TO_AUDIO: [CallbackQueryHandler(process_file)],
-            TRIM_VIDEO: [CallbackQueryHandler(process_file)],
-            TRIM_VIDEO_AUDIO: [CallbackQueryHandler(process_file)],
+            RECEIVE_VIDEO: [MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video)],
+            COMPRESS_VIDEO: [CallbackQueryHandler(process_file, per_message=True)],
+            CONVERT_TO_AUDIO: [CallbackQueryHandler(process_file, per_message=True)],
+            TRIM_VIDEO: [CallbackQueryHandler(process_file, per_message=True)],
+            TRIM_VIDEO_AUDIO: [CallbackQueryHandler(process_file, per_message=True)],
             GET_START_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_time)],
             GET_END_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_time)],
             CONFIRM_CANCEL: [
-                CallbackQueryHandler(confirm_cancel, pattern="^confirm_cancel$"),
-                CallbackQueryHandler(deny_cancel, pattern="^deny_cancel$"),
+                CallbackQueryHandler(confirm_cancel, pattern="^confirm_cancel$", per_message=True),
+                CallbackQueryHandler(deny_cancel, pattern="^deny_cancel$", per_message=True),
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
