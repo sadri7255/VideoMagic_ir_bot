@@ -125,82 +125,151 @@ async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع کم کردن حجم فایل ویدیویی
 async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         video = VideoFileClip("video.mp4")
         video.write_videofile("compressed_video.mp4", bitrate="500k")
-        await update.message.reply_video(video=open("compressed_video.mp4", 'rb'))
+        await message.reply_video(video=open("compressed_video.mp4", 'rb'))
         os.remove("video.mp4")
         os.remove("compressed_video.mp4")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در کم کردن حجم فایل ویدیویی: {e}")
-        await update.message.reply_text("خطایی در کم کردن حجم فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در کم کردن حجم فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در کم کردن حجم فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع برش فایل ویدیویی
 async def cut_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         start_time = "00:00:10"  # زمان شروع برش
         end_time = "00:00:20"    # زمان پایان برش
         video = VideoFileClip("video.mp4").subclip(start_time, end_time)
         video.write_videofile("cut_video.mp4")
-        await update.message.reply_video(video=open("cut_video.mp4", 'rb'))
+        await message.reply_video(video=open("cut_video.mp4", 'rb'))
         os.remove("video.mp4")
         os.remove("cut_video.mp4")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در برش فایل ویدیویی: {e}")
-        await update.message.reply_text("خطایی در برش فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در برش فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در برش فایل ویدیویی رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع تبدیل فایل ویدیویی به صوت
 async def convert_video_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         video = VideoFileClip("video.mp4")
         video.audio.write_audiofile("converted_audio.mp3")
-        await update.message.reply_audio(audio=open("converted_audio.mp3", 'rb'))
+        await message.reply_audio(audio=open("converted_audio.mp3", 'rb'))
         os.remove("video.mp4")
         os.remove("converted_audio.mp3")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در تبدیل فایل ویدیویی به صوت: {e}")
-        await update.message.reply_text("خطایی در تبدیل فایل ویدیویی به صوت رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در تبدیل فایل ویدیویی به صوت رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در تبدیل فایل ویدیویی به صوت رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع تغییر اطلاعات آلبوم و خواننده موسیقی
 async def edit_metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         audio = EasyID3("audio.mp3")
         audio['artist'] = 'خواننده جدید'
         audio['album'] = 'آلبوم جدید'
         audio.save()
-        await update.message.reply_audio(audio=open("audio.mp3", 'rb'))
+        await message.reply_audio(audio=open("audio.mp3", 'rb'))
         os.remove("audio.mp3")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در تغییر اطلاعات آلبوم و خواننده: {e}")
-        await update.message.reply_text("خطایی در تغییر اطلاعات آلبوم و خواننده رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در تغییر اطلاعات آلبوم و خواننده رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در تغییر اطلاعات آلبوم و خواننده رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع برش موسیقی
 async def cut_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         start_time = 10000  # زمان شروع برش به میلی‌ثانیه
         end_time = 20000    # زمان پایان برش به میلی‌ثانیه
         audio = AudioSegment.from_mp3("audio.mp3")
         cut_audio = audio[start_time:end_time]
         cut_audio.export("cut_audio.mp3", format="mp3")
-        await update.message.reply_audio(audio=open("cut_audio.mp3", 'rb'))
+        await message.reply_audio(audio=open("cut_audio.mp3", 'rb'))
         os.remove("audio.mp3")
         os.remove("cut_audio.mp3")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در برش موسیقی: {e}")
-        await update.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع تغییر عکس آلبوم
 async def change_album_art(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         audio = ID3("audio.mp3")
         with open("new_album_art.jpg", 'rb') as album_art:
             audio['APIC'] = APIC(
@@ -211,29 +280,44 @@ async def change_album_art(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 data=album_art.read()
             )
         audio.save()
-        await update.message.reply_audio(audio=open("audio.mp3", 'rb'))
+        await message.reply_audio(audio=open("audio.mp3", 'rb'))
         os.remove("audio.mp3")
         os.remove("new_album_art.jpg")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در تغییر عکس آلبوم: {e}")
-        await update.message.reply_text("خطایی در تغییر عکس آلبوم رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در تغییر عکس آلبوم رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در تغییر عکس آلبوم رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع کم کردن حجم صوت
 async def compress_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
         audio = AudioSegment.from_mp3("audio.mp3")
         audio = audio.set_channels(1)  # تبدیل به mono
         audio = audio.set_frame_rate(16000)  # تنظیم bit rate
         audio.export("compressed_audio.mp3", format="mp3", bitrate="16k")
-        await update.message.reply_audio(audio=open("compressed_audio.mp3", 'rb'))
+        await message.reply_audio(audio=open("compressed_audio.mp3", 'rb'))
         os.remove("audio.mp3")
         os.remove("compressed_audio.mp3")
         return await back_to_main_menu(update, context)
     except Exception as e:
         logger.error(f"خطا در کم کردن حجم صوت: {e}")
-        await update.message.reply_text("خطایی در کم کردن حجم صوت رخ داد. لطفا دوباره امتحان کنید.")
+        if update.message:
+            await update.message.reply_text("خطایی در کم کردن حجم صوت رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در کم کردن حجم صوت رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع بازگشت به منوی اصلی
@@ -243,46 +327,22 @@ async def back_to_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("بخش صوتی", callback_data='audio')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
+    if update.message:
+        await update.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
+    elif update.callback_query and update.callback_query.message:
+        await update.callback_query.message.reply_text('لطفا یک بخش را انتخاب کنید:', reply_markup=reply_markup)
     return ConversationHandler.END
 
 # تابع ریست کردن ربات
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
+    if update.message:
+        await update.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
+    elif update.callback_query and update.callback_query.message:
+        await update.callback_query.message.reply_text("ربات ریست شد. لطفا دوباره شروع کنید.")
     return await start(update, context)
 
 # تابع اصلی
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
 
-    # تعریف ConversationHandler برای مدیریت حالت‌های مختلف
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            VIDEO: [
-                MessageHandler(filters.VIDEO | filters.Document.VIDEO, process_video),
-                CallbackQueryHandler(compress_video, pattern='compress_video'),
-                CallbackQueryHandler(cut_video, pattern='cut_video'),
-                CallbackQueryHandler(convert_video_to_audio, pattern='convert_video_to_audio'),
-                CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
-            ],
-            AUDIO: [
-                MessageHandler(filters.AUDIO | filters.Document.AUDIO, process_audio),
-                CallbackQueryHandler(edit_metadata, pattern='edit_metadata'),
-                CallbackQueryHandler(cut_audio, pattern='cut_audio'),
-                CallbackQueryHandler(change_album_art, pattern='change_album_art'),
-                CallbackQueryHandler(compress_audio, pattern='compress_audio'),
-                CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
-            ]
-        },
-        fallbacks=[CommandHandler('reset', reset)]
-    )
-
-    application.add_handler(conv_handler)
-    application.add_handler(CallbackQueryHandler(button))  # این خط اضافه شده است
-    application.add_handler(CommandHandler('reset', reset))
-
-    application.run_polling()
-
-if __name__ == '__main__':
-    main()
+    # تعریف
