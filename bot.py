@@ -26,7 +26,16 @@ logger = logging.getLogger(__name__)
 TOKEN = '7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0'
 
 # حالت‌های گفتگو
-VIDEO, AUDIO = range(2)
+VIDEO, AUDIO, GET_START_TIME, GET_END_TIME = range(4)
+
+# تابع تبدیل زمان به میلی‌ثانیه
+def time_to_milliseconds(time_str):
+    try:
+        hh, mm, ss = map(int, time_str.split(':'))
+        return (hh * 3600 + mm * 60 + ss) * 1000
+    except Exception as e:
+        logger.error(f"خطا در تبدیل زمان به میلی‌ثانیه: {e}")
+        return None
 
 # تابع شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -203,6 +212,54 @@ async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("خطایی در پردازش فایل صوتی رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
+# تابع دریافت زمان شروع برش
+async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("لطفا زمان شروع برش را به فرمت HH:MM:SS وارد کنید:")
+    return GET_START_TIME
+
+# تابع دریافت زمان پایان برش
+async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['start_time'] = update.message.text
+    await update.message.reply_text("لطفا زمان پایان برش را به فرمت HH:MM:SS وارد کنید:")
+    return GET_END_TIME
+
+# تابع برش موسیقی
+async def cut_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        # بررسی وجود update.message
+        if update.message:
+            message = update.message
+        elif update.callback_query and update.callback_query.message:
+            message = update.callback_query.message
+        else:
+            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
+            return ConversationHandler.END
+
+        end_time = update.message.text
+        start_time = context.user_data.get('start_time')
+
+        # تبدیل زمان به میلی‌ثانیه
+        start_ms = time_to_milliseconds(start_time)
+        end_ms = time_to_milliseconds(end_time)
+
+        if start_ms is None or end_ms is None:
+            await message.reply_text("فرمت زمان وارد شده نامعتبر است. لطفا دوباره امتحان کنید.")
+            return AUDIO
+
+        audio = AudioSegment.from_mp3("audio.mp3")
+        cut_audio = audio[start_ms:end_ms]
+        cut_audio.export("cut_audio.mp3", format="mp3")
+        os.replace("cut_audio.mp3", "audio.mp3")  # جایگزینی فایل موقت
+        await message.reply_text("فایل صوتی برش داده شد.")
+        return AUDIO
+    except Exception as e:
+        logger.error(f"خطا در برش موسیقی: {e}")
+        if update.message:
+            await update.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
+        return ConversationHandler.END
+
 # تابع تغییر اطلاعات آلبوم و خواننده موسیقی
 async def edit_metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -227,34 +284,6 @@ async def edit_metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("خطایی در تغییر اطلاعات آلبوم و خواننده رخ داد. لطفا دوباره امتحان کنید.")
         elif update.callback_query and update.callback_query.message:
             await update.callback_query.message.reply_text("خطایی در تغییر اطلاعات آلبوم و خواننده رخ داد. لطفا دوباره امتحان کنید.")
-        return ConversationHandler.END
-
-# تابع برش موسیقی
-async def cut_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        # بررسی وجود update.message
-        if update.message:
-            message = update.message
-        elif update.callback_query and update.callback_query.message:
-            message = update.callback_query.message
-        else:
-            logger.error("خطا: پیامی برای پاسخ‌گویی یافت نشد.")
-            return ConversationHandler.END
-
-        start_time = 10000  # زمان شروع برش به میلی‌ثانیه
-        end_time = 20000    # زمان پایان برش به میلی‌ثانیه
-        audio = AudioSegment.from_mp3("audio.mp3")
-        cut_audio = audio[start_time:end_time]
-        cut_audio.export("cut_audio.mp3", format="mp3")
-        os.replace("cut_audio.mp3", "audio.mp3")  # جایگزینی فایل موقت
-        await message.reply_text("فایل صوتی برش داده شد.")
-        return AUDIO
-    except Exception as e:
-        logger.error(f"خطا در برش موسیقی: {e}")
-        if update.message:
-            await update.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
-        elif update.callback_query and update.callback_query.message:
-            await update.callback_query.message.reply_text("خطایی در برش موسیقی رخ داد. لطفا دوباره امتحان کنید.")
         return ConversationHandler.END
 
 # تابع تغییر عکس آلبوم
@@ -411,11 +440,17 @@ def main():
             AUDIO: [
                 MessageHandler(filters.AUDIO | filters.Document.AUDIO, process_audio),
                 CallbackQueryHandler(edit_metadata, pattern='edit_metadata'),
-                CallbackQueryHandler(cut_audio, pattern='cut_audio'),
+                CallbackQueryHandler(get_start_time, pattern='cut_audio'),
                 CallbackQueryHandler(change_album_art, pattern='change_album_art'),
                 CallbackQueryHandler(compress_audio, pattern='compress_audio'),
                 CallbackQueryHandler(send_file, pattern='send_file'),
                 CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
+            ],
+            GET_START_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_time)
+            ],
+            GET_END_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, cut_audio)
             ]
         },
         fallbacks=[CommandHandler('reset', reset)]
