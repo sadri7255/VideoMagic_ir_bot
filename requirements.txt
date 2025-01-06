@@ -7,6 +7,4 @@ gspread==6.0.0
 oauth2client==4.1.3
 python-dotenv==1.0.0
 pyTelegramBotAPI==4.12.0
-moviepy
-pydub
-mutagen
+mutagen==1.46.0
