@@ -51,8 +51,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع پردازش فایل ویدیویی
 async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        logger.info("فایل ویدیویی دریافت شد.")
-        file = await update.message.video.get_file()
+        logger.info("پیام دریافتی: %s", update.message)
+        if update.message.video:
+            logger.info("فایل ویدیویی دریافت شد.")
+            file = await update.message.video.get_file()
+        elif update.message.document:
+            logger.info("فایل به عنوان document دریافت شد.")
+            file = await update.message.document.get_file()
+        else:
+            await update.message.reply_text("لطفا یک فایل ویدیویی ارسال کنید.")
+            return VIDEO
+
         logger.info(f"فایل دانلود می‌شود: {file.file_path}")
         await file.download_to_drive('video.mp4')
         logger.info("فایل ویدیویی ذخیره شد.")
@@ -76,8 +85,17 @@ async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع پردازش فایل صوتی
 async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        logger.info("فایل صوتی دریافت شد.")
-        file = await update.message.audio.get_file()
+        logger.info("پیام دریافتی: %s", update.message)
+        if update.message.audio:
+            logger.info("فایل صوتی دریافت شد.")
+            file = await update.message.audio.get_file()
+        elif update.message.document:
+            logger.info("فایل به عنوان document دریافت شد.")
+            file = await update.message.document.get_file()
+        else:
+            await update.message.reply_text("لطفا یک فایل صوتی ارسال کنید.")
+            return AUDIO
+
         logger.info(f"فایل دانلود می‌شود: {file.file_path}")
         await file.download_to_drive('audio.mp3')
         logger.info("فایل صوتی ذخیره شد.")
@@ -237,14 +255,14 @@ def main():
         entry_points=[CommandHandler('start', start)],
         states={
             VIDEO: [
-                MessageHandler(filters.VIDEO, process_video),
+                MessageHandler(filters.VIDEO | filters.Document.VIDEO, process_video),
                 CallbackQueryHandler(compress_video, pattern='compress_video'),
                 CallbackQueryHandler(cut_video, pattern='cut_video'),
                 CallbackQueryHandler(convert_video_to_audio, pattern='convert_video_to_audio'),
                 CallbackQueryHandler(back_to_main_menu, pattern='back_to_main')
             ],
             AUDIO: [
-                MessageHandler(filters.AUDIO, process_audio),
+                MessageHandler(filters.AUDIO | filters.Document.AUDIO, process_audio),
                 CallbackQueryHandler(edit_metadata, pattern='edit_metadata'),
                 CallbackQueryHandler(cut_audio, pattern='cut_audio'),
                 CallbackQueryHandler(change_album_art, pattern='change_album_art'),
