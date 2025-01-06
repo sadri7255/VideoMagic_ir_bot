@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # توکن ربات
-TOKEN = 'YOUR_BOT_TOKEN_HERE'  # توکن ربات خود را اینجا قرار دهید
+TOKEN = '7516805845:AAFik2DscnDjxPKWwrHihN_LOFk2m3q4Sc0'
 
 # حالت‌های گفتگو
 VIDEO, AUDIO = range(2)
