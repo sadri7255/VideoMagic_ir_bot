@@ -29,15 +29,21 @@ logger = logging.getLogger(__name__)
     CONFIRM_CANCEL,
 ) = range(9)
 
+# تابع تبدیل زمان به ثانیه
+def time_to_seconds(time_str):
+    try:
+        hh, mm, ss = map(int, time_str.split(":"))
+        return hh * 3600 + mm * 60 + ss
+    except ValueError:
+        return None
+
 # تابع شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("دریافت فایل 📥", callback_data="receive_file")],
-        [InlineKeyboardButton("ارسال فایل 📤", callback_data="send_file")],
-        [InlineKeyboardButton("لغو عملیات ❌", callback_data="cancel_operation")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("لطفا یک گزینه را انتخاب کنید:", reply_markup=reply_markup)
+    await update.message.reply_text("لطفا فایل خود را ارسال کنید:", reply_markup=reply_markup)
     return CHOOSING
 
 # تابع لغو عملیات
@@ -56,13 +62,6 @@ async def receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
     await update.callback_query.edit_message_text("لطفا فایل خود را ارسال کنید.")
     context.user_data["state"] = RECEIVE_FILE
-    return RECEIVE_FILE
-
-# تابع ارسال فایل
-async def send_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا فایل خود را ارسال کنید.")
-    context.user_data["state"] = "send_file"
     return RECEIVE_FILE
 
 # تابع مدیریت فایل دریافتی
@@ -85,17 +84,27 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ذخیره مسیر فایل در user_data
     user_data["file_path"] = file_path
 
-    # نمایش منوی عملیات
+    # نمایش منوی اصلی
+    return await show_main_menu(update, context)
+
+# تابع نمایش منوی اصلی
+async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("کاهش حجم ویدیو 🎥", callback_data="compress_video")],
         [InlineKeyboardButton("تبدیل ویدیو به صوت 🎶", callback_data="convert_to_audio")],
         [InlineKeyboardButton("برش کلیپ ✂️", callback_data="trim_video")],
         [InlineKeyboardButton("برش کلیپ و صوت 🎬", callback_data="trim_video_audio")],
         [InlineKeyboardButton("لغو عملیات ❌", callback_data="cancel_operation")],
+        [InlineKeyboardButton("بازگشت به منوی اصلی 🔙", callback_data="back_to_main")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("فایل دریافت شد. لطفا یک عملیات را انتخاب کنید:", reply_markup=reply_markup)
     return CHOOSING
+
+# تابع بازگشت به منوی اصلی
+async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    return await show_main_menu(update, context)
 
 # تابع کاهش حجم ویدیو
 async def compress_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -114,37 +123,45 @@ async def convert_to_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع برش کلیپ
 async def trim_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا زمان شروع برش را به ثانیه وارد کنید:")
+    await update.callback_query.edit_message_text(
+        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05"
+    )
     context.user_data["state"] = TRIM_VIDEO
     return GET_START_TIME
 
 # تابع برش کلیپ و صوت
 async def trim_video_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer()
-    await update.callback_query.edit_message_text("لطفا زمان شروع برش را به ثانیه وارد کنید:")
+    await update.callback_query.edit_message_text(
+        "لطفا زمان شروع برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05"
+    )
     context.user_data["state"] = TRIM_VIDEO_AUDIO
     return GET_START_TIME
 
 # تابع دریافت زمان شروع برش
 async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        start_time = float(update.message.text)
-        context.user_data["start_time"] = start_time
-        await update.message.reply_text("لطفا زمان پایان برش را به ثانیه وارد کنید:")
-        return GET_END_TIME
-    except ValueError:
-        await update.message.reply_text("زمان وارد شده نامعتبر است. لطفا یک عدد وارد کنید.")
+    time_str = update.message.text
+    start_time = time_to_seconds(time_str)
+
+    if start_time is None:
+        await update.message.reply_text("فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05")
         return GET_START_TIME
+
+    context.user_data["start_time"] = start_time
+    await update.message.reply_text("لطفا زمان پایان برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05")
+    return GET_END_TIME
 
 # تابع دریافت زمان پایان برش
 async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        end_time = float(update.message.text)
-        context.user_data["end_time"] = end_time
-        return await process_file(update, context)
-    except ValueError:
-        await update.message.reply_text("زمان وارد شده نامعتبر است. لطفا یک عدد وارد کنید.")
+    time_str = update.message.text
+    end_time = time_to_seconds(time_str)
+
+    if end_time is None:
+        await update.message.reply_text("فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05")
         return GET_END_TIME
+
+    context.user_data["end_time"] = end_time
+    return await process_file(update, context)
 
 # تابع پردازش فایل
 async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -235,12 +252,12 @@ def main():
         states={
             CHOOSING: [
                 CallbackQueryHandler(receive_file, pattern="^receive_file$"),
-                CallbackQueryHandler(send_file, pattern="^send_file$"),
                 CallbackQueryHandler(compress_video, pattern="^compress_video$"),
                 CallbackQueryHandler(convert_to_audio, pattern="^convert_to_audio$"),
                 CallbackQueryHandler(trim_video, pattern="^trim_video$"),
                 CallbackQueryHandler(trim_video_audio, pattern="^trim_video_audio$"),
                 CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
+                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
             ],
             RECEIVE_FILE: [MessageHandler(filters.Document.ALL | filters.VIDEO, handle_file)],
             COMPRESS_VIDEO: [CallbackQueryHandler(process_file)],
