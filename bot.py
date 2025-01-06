@@ -51,9 +51,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع پردازش فایل ویدیویی
 async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        logger.info("فایل ویدیویی دریافت شد.")
         file = await update.message.video.get_file()
+        logger.info(f"فایل دانلود می‌شود: {file.file_path}")
         await file.download_to_drive('video.mp4')
-        logger.info("فایل ویدیویی دریافت و ذخیره شد.")
+        logger.info("فایل ویدیویی ذخیره شد.")
         await update.message.reply_text("فایل ویدیویی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
         
         # اضافه کردن منو برای انتخاب عملیات ویدیویی
@@ -74,9 +76,11 @@ async def process_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع پردازش فایل صوتی
 async def process_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        logger.info("فایل صوتی دریافت شد.")
         file = await update.message.audio.get_file()
+        logger.info(f"فایل دانلود می‌شود: {file.file_path}")
         await file.download_to_drive('audio.mp3')
-        logger.info("فایل صوتی دریافت و ذخیره شد.")
+        logger.info("فایل صوتی ذخیره شد.")
         await update.message.reply_text("فایل صوتی دریافت شد. لطفا عملیات مورد نظر را انتخاب کنید.")
         
         # اضافه کردن منو برای انتخاب عملیات صوتی
