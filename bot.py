@@ -160,52 +160,70 @@ async def trim_video_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # تابع دریافت زمان شروع برش
 async def get_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    time_str = update.message.text
-    start_time = time_to_seconds(time_str)
+    if update.callback_query:
+        # اگر کاربر روی دکمه کلیک کرده باشد
+        await update.callback_query.answer()
+        if update.callback_query.data == "cancel_operation":
+            return await cancel(update, context)
+        elif update.callback_query.data == "back_to_main":
+            return await back_to_main(update, context)
+    else:
+        # اگر کاربر متن ارسال کرده باشد
+        time_str = update.message.text
+        start_time = time_to_seconds(time_str)
 
-    if start_time is None:
+        if start_time is None:
+            keyboard = [
+                [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+                [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+                reply_markup=reply_markup,
+            )
+            return GET_START_TIME
+
+        context.user_data["start_time"] = start_time
         keyboard = [
             [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
             [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-            reply_markup=reply_markup,
-        )
-        return GET_START_TIME
-
-    context.user_data["start_time"] = start_time
-    keyboard = [
-        [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-        [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "لطفا زمان پایان برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
-        reply_markup=reply_markup,
-    )
-    return GET_END_TIME
-
-# تابع دریافت زمان پایان برش
-async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    time_str = update.message.text
-    end_time = time_to_seconds(time_str)
-
-    if end_time is None:
-        keyboard = [
-            [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
-            [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+            "لطفا زمان پایان برش را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
             reply_markup=reply_markup,
         )
         return GET_END_TIME
 
-    context.user_data["end_time"] = end_time
-    return await process_file(update, context)
+# تابع دریافت زمان پایان برش
+async def get_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.callback_query:
+        # اگر کاربر روی دکمه کلیک کرده باشد
+        await update.callback_query.answer()
+        if update.callback_query.data == "cancel_operation":
+            return await cancel(update, context)
+        elif update.callback_query.data == "back_to_main":
+            return await back_to_main(update, context)
+    else:
+        # اگر کاربر متن ارسال کرده باشد
+        time_str = update.message.text
+        end_time = time_to_seconds(time_str)
+
+        if end_time is None:
+            keyboard = [
+                [InlineKeyboardButton("لغو ❌", callback_data="cancel_operation")],
+                [InlineKeyboardButton("برگشت به منوی قبل 🔙", callback_data="back_to_main")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(
+                "فرمت زمان نامعتبر است. لطفا زمان را به فرمت `HH:MM:SS` وارد کنید.\nمثال: 01:06:05",
+                reply_markup=reply_markup,
+            )
+            return GET_END_TIME
+
+        context.user_data["end_time"] = end_time
+        return await process_file(update, context)
 
 # تابع پردازش فایل
 async def process_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -324,8 +342,16 @@ def main():
             CONVERT_TO_AUDIO: [CallbackQueryHandler(process_file)],
             TRIM_VIDEO: [CallbackQueryHandler(process_file)],
             TRIM_VIDEO_AUDIO: [CallbackQueryHandler(process_file)],
-            GET_START_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_time)],
-            GET_END_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_time)],
+            GET_START_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_start_time),
+                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
+                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
+            ],
+            GET_END_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_end_time),
+                CallbackQueryHandler(cancel_operation, pattern="^cancel_operation$"),
+                CallbackQueryHandler(back_to_main, pattern="^back_to_main$"),
+            ],
             CONFIRM_CANCEL: [
                 CallbackQueryHandler(confirm_cancel, pattern="^confirm_cancel$"),
                 CallbackQueryHandler(deny_cancel, pattern="^deny_cancel$"),
